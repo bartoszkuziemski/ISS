@@ -59,11 +59,10 @@ def height_list(kp, Ti, Td):
 
 
 app = dash.Dash(__name__)
-
 app.layout = html.Div([
     html.Div(children=[
         # html.Label('Wykres'),
-        dcc.Graph(id='plot_graph')]),
+        dcc.Graph(id='plot_graph', config={'responsive': True})]),
 
     html.Div(children=[
         html.Br(),
@@ -75,6 +74,7 @@ app.layout = html.Div([
             step=0.005,
             marks={0: '0', 1: '1'},
             value=0.025,
+            tooltip={"placement": "bottom", "always_visible": True}
         ),
 
         html.Br(),
@@ -86,6 +86,7 @@ app.layout = html.Div([
             step=0.1,
             marks={0: '0', 20: '20'},
             value=2.5,
+            tooltip={"placement": "bottom", "always_visible": True}
         ),
 
         html.Br(),
@@ -97,6 +98,7 @@ app.layout = html.Div([
             step=1,
             marks={0: '0', 1000: '1000'},
             value=0.2,
+            tooltip={"placement": "bottom", "always_visible": True}
         ),
 
     ], style={'padding': 10, 'flex': 1})
@@ -110,19 +112,26 @@ app.layout = html.Div([
 def plot_graph(sliderKp, sliderTi, sliderTd):
     fig = go.Figure(
         layout=dict(
-            title="Wyjście regulatora",
+            title="Regulator PID",
             xaxis_title="Czas [s]",
             yaxis_title="Wysokość słupa wody[m]"
     ))
     fig.add_trace(go.Scatter(
         x=time_list(),
         y=height_list(sliderKp, sliderTi, sliderTd),
-        marker=dict(color='blue', size=8)
+        name="Wyjście obiektu",
+        line=dict(color='royalblue', width=2)
+    ))
+    fig.add_trace(go.Scatter(
+        x=time_list(),
+        y=[h_zad] * N,
+        name="Wartość zadana",
+        line=dict(color='red', width=1, dash='dash')
     ))
 
     fig.update_layout(
         margin=dict(b=50, t=50, l=50, r=50),
-        width=800,
+        width=1000,
         height=500
     )
 
@@ -142,7 +151,7 @@ if __name__ == "__main__":
 
 
 
-
+##########################       bokeh
 # chart = figure(plot_width=800,
 #                plot_height=300,
 #                title="Wysokość słupa wody",
@@ -168,7 +177,7 @@ if __name__ == "__main__":
 # show(chart)
 
 
-
+############################      matplotlib
 # plt.grid()
 # plt.plot(t_list, h)
 # plt.xlabel("t [s]")
