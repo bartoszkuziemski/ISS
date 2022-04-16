@@ -1,6 +1,6 @@
 from AeroPendulum import *
 from PIDRegulator import *
-from FuzzyPIDRegulator import *
+from FuzzyPDRegulator import *
 from dash import dcc
 from dash import html
 import plotly.graph_objs as go
@@ -16,26 +16,43 @@ class Simulation:
         self.time = []
         self.ref_signal = []
 
-    def simulate(self, aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time=10.0, mode=0, f=1.0, ref_val=math.pi / 2):
+    def simulate(self, aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time=10.0, mode=0, f=1.0,
+                 ref_val=math.pi / 2.0):
         simulation_samples = int(simulation_time / aero_pendulum.time_delta_sim)
         t = 0.0
         u = 0.0
 
-        for n in range(0, simulation_samples):
-            t = aero_pendulum.simulate_step(u)
-            if mode == 0:
-                ref_signal = ref_val
-            elif mode == 1:
+        # mode = 0 - unit step function
+        if mode == 0:
+            ref_signal = ref_val
+            for n in range(0, simulation_samples):
+                t = aero_pendulum.simulate_step(u)
+                # u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                self.time.append(t)
+                self.ref_signal.append(ref_signal)
+        #mode = 1 - ref_val * sin(2pi*f*t)
+        if mode == 1:
+            for n in range(0, simulation_samples):
+                t = aero_pendulum.simulate_step(u)
                 ref_signal = ref_val * math.sin(2 * math.pi * f * t)
-            else:
-                ref_signal = math.pi / 2
+                # u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                self.time.append(t)
+                self.ref_signal.append(ref_signal)
 
-            #wybierz jeden xd
-            #u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
-            u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
-
-            self.time.append(t)
-            self.ref_signal.append(ref_signal)
+        #mode = 2 - pulse function (50/50, +ref_val, -ref_val)
+        if mode == 2:
+            for n in range(0, simulation_samples):
+                t = aero_pendulum.simulate_step(u)
+                if ref_val * math.sin(2 * math.pi * f * t) >= 0:
+                    ref_signal = ref_val
+                else:
+                    ref_signal = -ref_val
+                u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                #u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                self.time.append(t)
+                self.ref_signal.append(ref_signal)
 
 
 app = dash.Dash(__name__)
@@ -101,9 +118,9 @@ app.layout = html.Div([
 def plot_graph(sliderKp, sliderTi, sliderTd, simulation_time):
     aero_pendulum = AeroPendulum()
     classic_regulator = PIDRegulator(sliderKp, sliderTi, sliderTd)
-    fuzzy_regulator = FuzzyPIDRegulator()
+    fuzzy_regulator = FuzzyPDRegulator()
     simulation = Simulation()
-    simulation.simulate(aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time, mode=0, f=0.2)
+    simulation.simulate(aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time, mode=2, f=0.02)
     fig = go.Figure(
         layout=dict(
             title="Wykres położenia",
@@ -113,7 +130,7 @@ def plot_graph(sliderKp, sliderTi, sliderTd, simulation_time):
     fig.add_trace(go.Scatter(
         x=aero_pendulum.time_list,
         y=aero_pendulum.alpha_List,
-        name="Wyjście obiektu",
+        name="Alpha",
         line=dict(color='royalblue', width=2)
     ))
     fig.add_trace(go.Scatter(
@@ -132,25 +149,7 @@ def plot_graph(sliderKp, sliderTi, sliderTd, simulation_time):
         x=simulation.time,
         y=simulation.ref_signal,
         name="Wartość zadana",
-        line=dict(color='red', width=1, dash='dash')
-    ))
-    fig.add_trace(go.Scatter(
-        x=classic_regulator.time_list,
-        y=classic_regulator.de_list,
-        name="deriv error",
-        line=dict(color='yellow', width=1)
-    ))
-    fig.add_trace(go.Scatter(
-        x=classic_regulator.time_list,
-        y=classic_regulator.error_list,
-        name="error",
-        line=dict(color='magenta', width=1)
-    ))
-    fig.add_trace(go.Scatter(
-        x=classic_regulator.time_list,
-        y=classic_regulator.i_list,
-        name="integral",
-        line=dict(color='magenta', width=1)
+        line=dict(color='orange', width=1, dash='dash')
     ))
     fig.update_layout(
         margin=dict(b=50, t=50, l=50, r=50),

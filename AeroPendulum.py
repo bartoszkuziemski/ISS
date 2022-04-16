@@ -40,7 +40,7 @@ class AeroPendulum:
     #
     #
     #################################################################################################################
-    def __init__(self, time_delta_sim=0.001,
+    def __init__(self, time_delta_sim=0.01,
                  m=0.5, r=1, g=9.81, c=0.1,
                  alpha=0.0, omega=0.0, epsilon=0.0):
         self.time_delta_sim = time_delta_sim  # quantum of time [s]
