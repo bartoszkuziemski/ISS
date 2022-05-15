@@ -16,7 +16,7 @@ class Simulation:
         self.time = []
         self.ref_signal = []
 
-    def simulate(self, aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time=10.0, mode=0, f=1.0, ref_val=math.pi / 2.0):
+    def simulate(self, aero_pendulum, regulator, ref_val, simulation_time, mode, f):
         simulation_samples = int(simulation_time / aero_pendulum.time_delta_sim)
         t = 0.0
         u = 0.0
@@ -27,7 +27,7 @@ class Simulation:
             for n in range(0, simulation_samples):
                 t = aero_pendulum.simulate_step(u)
                 # u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
-                u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = regulator.control(ref_signal, aero_pendulum.alpha, t)
                 self.time.append(t)
                 self.ref_signal.append(ref_signal)
 
@@ -37,7 +37,7 @@ class Simulation:
                 t = aero_pendulum.simulate_step(u)
                 ref_signal = ref_val * math.sin(2 * math.pi * f * t)
                 # u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
-                u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = regulator.control(ref_signal, aero_pendulum.alpha, t)
                 self.time.append(t)
                 self.ref_signal.append(ref_signal)
 
@@ -50,7 +50,7 @@ class Simulation:
                 else:
                     ref_signal = -ref_val
                 # u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
-                u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = regulator.control(ref_signal, aero_pendulum.alpha, t)
                 self.time.append(t)
                 self.ref_signal.append(ref_signal)
 
@@ -59,7 +59,7 @@ class Simulation:
             ref_signal = ref_val
             for n in range(0, simulation_samples):
                 t = aero_pendulum.simulate_step(u)
-                u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = regulator.control(ref_signal, aero_pendulum.alpha, t)
                 # u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
                 self.time.append(t)
                 self.ref_signal.append(ref_signal)
@@ -69,7 +69,7 @@ class Simulation:
             for n in range(0, simulation_samples):
                 t = aero_pendulum.simulate_step(u)
                 ref_signal = ref_val * math.sin(2 * math.pi * f * t)
-                u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = regulator.control(ref_signal, aero_pendulum.alpha, t)
                 # u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
                 self.time.append(t)
                 self.ref_signal.append(ref_signal)
@@ -82,7 +82,7 @@ class Simulation:
                     ref_signal = ref_val
                 else:
                     ref_signal = -ref_val
-                u = classic_regulator.control(ref_signal, aero_pendulum.alpha, t)
+                u = regulator.control(ref_signal, aero_pendulum.alpha, t)
                 # u = fuzzy_regulator.control(ref_signal, aero_pendulum.alpha, t)
                 self.time.append(t)
                 self.ref_signal.append(ref_signal)
@@ -92,8 +92,9 @@ app = dash.Dash(__name__)
 
 app.layout = html.Div([
     html.Div(children=[
-        dcc.Graph(id='plot_graph', config={'responsive': True}),
-        dcc.Graph(id='plot_graph_pid', config={'responsive': True})]),
+        dcc.Graph(id='plot_graph_pid', config={'responsive': True}),
+        dcc.Graph(id='plot_graph_fuzzy', config={'responsive': True})
+    ]),
 
     html.Div(children=[
         html.Br(),
@@ -131,6 +132,55 @@ app.layout = html.Div([
             value=0.0,
             tooltip={"placement": "bottom", "always_visible": True}
         ),
+
+        html.Br(),
+        html.Label('Wartość zadana regulatora rozmytego'),
+        dcc.RadioItems(
+            id='radioPID',
+            options=[
+                {'label': 'Skok jednostkowy', 'value': 0},
+                {'label': 'Sinusoida', 'value': 1},
+                # {'label': 'Sygnał prostokątny', 'value': 2},
+            ],
+            value=0
+        ),
+
+        html.Br(),
+        html.Label('Wartość zadana regulatora PID'),
+        dcc.RadioItems(
+            id='radioFuzzy',
+            options=[
+                {'label': 'Skok jednostkowy', 'value': 3},
+                {'label': 'Sinusoida', 'value': 4},
+                # {'label': 'Sygnał prostokątny', 'value': 5},
+            ],
+            value=3
+        ),
+
+        html.Br(),
+        html.Label('Wartość zadana [rad]'),
+        dcc.Slider(
+            id='setpoint',
+            min=0.1,
+            max=math.pi,
+            step=0.01,
+            marks={0.1: '0.1', math.pi: 'π'},
+            value=1.0,
+            tooltip={"placement": "bottom", "always_visible": True}
+        ),
+
+        html.Br(),
+        html.Label('Częstotliwość sinusoidy [Hz]'),
+        dcc.Slider(
+            id='sine_frequency',
+            min=0.02,
+            max=0.2,
+            step=0.01,
+            marks={0.02: '0.02', 0.2: '0.2'},
+            value=0.1,
+            tooltip={"placement": "bottom", "always_visible": True}
+        ),
+
         html.Br(),
         html.Label('Czas symulacji [s]'),
         daq.NumericInput(
@@ -144,67 +194,16 @@ app.layout = html.Div([
 ], style={'display': 'flex', 'flex-direction': 'row'})
 
 
-@app.callback(Output('plot_graph_pid', 'figure'),
-              Input('sliderKp', 'value'),
-              Input('sliderTi', 'value'),
-              Input('sliderTd', 'value'),
-              Input('simulation_time', 'value'))
-def plot_graph_pid(sliderKp, sliderTi, sliderTd, simulation_time):
+@app.callback(Output('plot_graph_fuzzy', 'figure'),
+              Input('simulation_time', 'value'),
+              Input('radioFuzzy', 'value'),
+              Input('setpoint', 'value'),
+              Input('sine_frequency', 'value'))
+def plot_graph_fuzzy(simulation_time, radioFuzzy, setpoint, sine_frequency):
     aero_pendulum = AeroPendulum()
-    classic_regulator = PIDRegulator(sliderKp, sliderTi, sliderTd)
     fuzzy_regulator = FuzzyPDRegulator()
     simulation = Simulation()
-    simulation.simulate(aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time, mode=3, f=0.02)
-    fig = go.Figure(
-        layout=dict(
-            title="Regulator PID",
-            xaxis_title="Czas [s]",
-            yaxis_title="Kąt alfa [rad]"
-        ))
-    fig.add_trace(go.Scatter(
-        x=aero_pendulum.time_list,
-        y=aero_pendulum.alpha_List,
-        name="Alpha",
-        line=dict(color='royalblue', width=2)
-    ))
-    fig.add_trace(go.Scatter(
-        x=aero_pendulum.time_list,
-        y=aero_pendulum.omega_list,
-        name="Omega",
-        line=dict(color='red', width=1)
-    ))
-    fig.add_trace(go.Scatter(
-        x=aero_pendulum.time_list[1:],
-        y=aero_pendulum.epsilon_list[1:],
-        name="Epsilon",
-        line=dict(color='purple', width=1)
-    ))
-    fig.add_trace(go.Scatter(
-        x=simulation.time,
-        y=simulation.ref_signal,
-        name="Wartość zadana",
-        line=dict(color='orange', width=1, dash='dash')
-    ))
-    fig.update_layout(
-        margin=dict(b=50, t=50, l=50, r=50),
-        width=1000,
-        height=500
-    )
-
-    return fig
-
-
-@app.callback(Output('plot_graph', 'figure'),
-              Input('sliderKp', 'value'),
-              Input('sliderTi', 'value'),
-              Input('sliderTd', 'value'),
-              Input('simulation_time', 'value'))
-def plot_graph(sliderKp, sliderTi, sliderTd, simulation_time):
-    aero_pendulum = AeroPendulum()
-    classic_regulator = PIDRegulator(sliderKp, sliderTi, sliderTd)
-    fuzzy_regulator = FuzzyPDRegulator()
-    simulation = Simulation()
-    simulation.simulate(aero_pendulum, classic_regulator, fuzzy_regulator, simulation_time, mode=0, f=0.02)
+    simulation.simulate(aero_pendulum, fuzzy_regulator, setpoint, simulation_time, radioFuzzy, sine_frequency)
     fig = go.Figure(
         layout=dict(
             title="Regulator rozmyty",
@@ -238,7 +237,59 @@ def plot_graph(sliderKp, sliderTi, sliderTd, simulation_time):
     fig.update_layout(
         margin=dict(b=50, t=50, l=50, r=50),
         width=1000,
-        height=500
+        height=400
+    )
+
+    return fig
+
+
+@app.callback(Output('plot_graph_pid', 'figure'),
+              Input('sliderKp', 'value'),
+              Input('sliderTi', 'value'),
+              Input('sliderTd', 'value'),
+              Input('simulation_time', 'value'),
+              Input('radioPID', 'value'),
+              Input('setpoint', 'value'),
+              Input('sine_frequency', 'value'))
+def plot_graph_pid(sliderKp, sliderTi, sliderTd, simulation_time, radioPID, setpoint, sine_frequency):
+    aero_pendulum = AeroPendulum()
+    classic_regulator = PIDRegulator(sliderKp, sliderTi, sliderTd)
+    simulation = Simulation()
+    simulation.simulate(aero_pendulum, classic_regulator, setpoint, simulation_time, radioPID, sine_frequency)
+    fig = go.Figure(
+        layout=dict(
+            title="Regulator PID",
+            xaxis_title="Czas [s]",
+            yaxis_title="Kąt alfa [rad]"
+        ))
+    fig.add_trace(go.Scatter(
+        x=aero_pendulum.time_list,
+        y=aero_pendulum.alpha_List,
+        name="Alpha",
+        line=dict(color='royalblue', width=2)
+    ))
+    fig.add_trace(go.Scatter(
+        x=aero_pendulum.time_list,
+        y=aero_pendulum.omega_list,
+        name="Omega",
+        line=dict(color='red', width=1)
+    ))
+    fig.add_trace(go.Scatter(
+        x=aero_pendulum.time_list[1:],
+        y=aero_pendulum.epsilon_list[1:],
+        name="Epsilon",
+        line=dict(color='purple', width=1)
+    ))
+    fig.add_trace(go.Scatter(
+        x=simulation.time,
+        y=simulation.ref_signal,
+        name="Wartość zadana",
+        line=dict(color='orange', width=1, dash='dash')
+    ))
+    fig.update_layout(
+        margin=dict(b=50, t=50, l=50, r=50),
+        width=1000,
+        height=400
     )
 
     return fig
