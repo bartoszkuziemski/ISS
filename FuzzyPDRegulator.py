@@ -8,7 +8,7 @@ from simpful import *
 # This class describes fuzzy PD regulator with ,,classic'' integral block added for controlling the aeropendulum.
 
 class FuzzyPDRegulator:
-    def __init__(self, u_amp=10.0, u_min=-10.0, u_max=10, u_delta_max=0.01):
+    def __init__(self, u_amp=10.0, u_min=-10.0, u_max=10, u_delta_max=0.01, ti=2.0):
         self.error_list = [0.0]
         self.u_list = [0.0]
         self.time_list = [0.0]
@@ -17,6 +17,7 @@ class FuzzyPDRegulator:
         self.u_max = u_max
         self.u_list = [0.0]
         self.u_delta_max = u_delta_max
+        self.ti = ti
 
         self.FS = FuzzySystem()
         # Define fuzzy sets and linguistic variables
@@ -64,7 +65,7 @@ class FuzzyPDRegulator:
         # Define fuzzy rules
         self.FS.add_rules_from_file("rules.txt", verbose=True)
 
-    def control(self, reference_value=0.0, measured_value=0.0, time=0.0, ti=0.5):
+    def control(self, reference_value=0.0, measured_value=0.0, time=0.0):
         error = reference_value - measured_value
         self.error_list.append(error)
         if len(self.error_list) <= 1:
@@ -84,7 +85,7 @@ class FuzzyPDRegulator:
         u = return_dict['u_out']
 
         # classic integral:
-        u += self.integral * ti
+        u += self.integral / self.ti
 
         u_sat = limit_saturation(u, self.u_min, self.u_max)
         u_lim = limit_value(u_sat, self.u_list[-1], self.u_delta_max)

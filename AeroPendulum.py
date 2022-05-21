@@ -59,8 +59,7 @@ class AeroPendulum:
         self.epsilon_list = [epsilon]
 
     def calc_ft(self, u=0.0):
-        # TODO: implement Ft as an interesting function of voltage, for now it's just linear function
-        k = 5  # temporary linear coefficient
+        k = 5  #linear coefficient
         return k * u  # force of thrust [N]
 
     def calc_epsilon(self, u=0.0):
