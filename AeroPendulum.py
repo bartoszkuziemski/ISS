@@ -15,7 +15,7 @@ class AeroPendulum:
     #################################################################################################################
     # The AeroPendulum model is described with following equation:
     #          q                         q
-    # m*r^2 * ---- = -m*g*r*sin(q) - c * -- + Ft(u)
+    # m*r^2 * ---- = -m*g*r*sin(q) - c * -- + r*Ft(u)
     #         dt^2                       dt
     # Where:
     #
